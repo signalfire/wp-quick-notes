@@ -1,14 +1,15 @@
 <?php
 /**
  * Plugin Name: Signalfire Quick Notes
- * Plugin URI: https://signalfire.com
+ * Plugin URI: https://wordpress.org/plugins/signalfire-quick-notes/
  * Description: Adds a simple "Quick Notes" widget to the WordPress dashboard for administrators and editors to leave short notes.
  * Version: 1.0.0
  * Author: Signalfire
+ * Author URI: https://signalfire.com
  * Text Domain: signalfire-quick-notes
  * Domain Path: /languages
  * Requires at least: 5.0
- * Tested up to: 6.3
+ * Tested up to: 6.8
  * Requires PHP: 7.4
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -20,8 +21,16 @@ if (!defined('ABSPATH')) {
 
 class SignalfireQuickNotes {
 	
+	/**
+	 * Option name for storing notes data
+	 *
+	 * @var string
+	 */
 	private $option_name = 'sqn_notes_data';
 	
+	/**
+	 * Constructor
+	 */
 	public function __construct() {
 		add_action('init', array($this, 'init'));
 		add_action('wp_dashboard_setup', array($this, 'add_dashboard_widget'));
@@ -30,12 +39,18 @@ class SignalfireQuickNotes {
 		register_activation_hook(__FILE__, array($this, 'activate'));
 	}
 	
+	/**
+	 * Initialize the plugin
+	 */
 	public function init() {
 		load_plugin_textdomain('signalfire-quick-notes', false, dirname(plugin_basename(__FILE__)) . '/languages');
 	}
 	
+	/**
+	 * Add dashboard widget
+	 */
 	public function add_dashboard_widget() {
-		if (!current_user_can('edit_posts')) {
+		if ( ! current_user_can( 'edit_posts' ) ) {
 			return;
 		}
 		
@@ -46,9 +61,12 @@ class SignalfireQuickNotes {
 		);
 	}
 	
+	/**
+	 * Display the dashboard widget content
+	 */
 	public function display_dashboard_widget() {
-		if (!current_user_can('edit_posts')) {
-			wp_die(__('You do not have sufficient permissions to access this feature.', 'signalfire-quick-notes'));
+		if ( ! current_user_can( 'edit_posts' ) ) {
+			wp_die(esc_html__('You do not have sufficient permissions to access this feature.', 'signalfire-quick-notes'));
 		}
 		
 		$notes_data = get_option($this->option_name, array());
@@ -80,8 +98,9 @@ class SignalfireQuickNotes {
 			<?php if ($last_updated): ?>
 			<div class="sqn-notes-meta">
 				<small class="description">
-					<?php 
+					<?php
 					echo sprintf(
+						/* translators: 1: formatted date and time, 2: user display name */
 						esc_html__('Last updated: %1$s by %2$s', 'signalfire-quick-notes'),
 						esc_html(wp_date(get_option('date_format') . ' ' . get_option('time_format'), strtotime($last_updated))),
 						esc_html($updated_by_name)
@@ -138,12 +157,17 @@ class SignalfireQuickNotes {
 		<?php
 	}
 	
-	public function enqueue_admin_scripts($hook_suffix) {
-		if ($hook_suffix !== 'index.php') {
+	/**
+	 * Enqueue admin scripts
+	 *
+	 * @param string $hook_suffix Current admin page hook suffix.
+	 */
+	public function enqueue_admin_scripts( $hook_suffix ) {
+		if ( 'index.php' !== $hook_suffix ) {
 			return;
 		}
 		
-		if (!current_user_can('edit_posts')) {
+		if ( ! current_user_can( 'edit_posts' ) ) {
 			return;
 		}
 		
@@ -237,47 +261,59 @@ class SignalfireQuickNotes {
 		wp_add_inline_script('jquery', $inline_script);
 	}
 	
+	/**
+	 * Handle AJAX save notes request
+	 */
 	public function ajax_save_notes() {
-		if (!current_user_can('edit_posts')) {
-			wp_die(__('You do not have sufficient permissions to perform this action.', 'signalfire-quick-notes'));
+		if ( ! current_user_can( 'edit_posts' ) ) {
+			wp_die(esc_html__('You do not have sufficient permissions to perform this action.', 'signalfire-quick-notes'));
 		}
 		
-		if (!wp_verify_nonce($_POST['nonce'], 'sqn_save_notes_nonce')) {
-			wp_send_json_error(__('Security check failed.', 'signalfire-quick-notes'));
+		// Verify nonce
+		if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['nonce'] ) ), 'sqn_save_notes_nonce' ) ) {
+			wp_send_json_error( __( 'Security check failed.', 'signalfire-quick-notes' ) );
 		}
 		
-		$content = isset($_POST['content']) ? wp_kses_post($_POST['content']) : '';
+		$content = isset( $_POST['content'] ) ? wp_kses_post( wp_unslash( $_POST['content'] ) ) : '';
 		
 		$current_user = wp_get_current_user();
-		$notes_data = array(
-			'content' => $content,
-			'last_updated' => current_time('mysql'),
-			'updated_by' => $current_user->ID,
-			'updated_by_name' => $current_user->display_name
+		$notes_data   = array(
+			'content'         => $content,
+			'last_updated'    => current_time( 'mysql' ),
+			'updated_by'      => $current_user->ID,
+			'updated_by_name' => $current_user->display_name,
 		);
 		
-		$saved = update_option($this->option_name, $notes_data);
+		$saved = update_option( $this->option_name, $notes_data );
 		
-		if ($saved) {
-			wp_send_json_success(array(
-				'message' => __('Notes saved successfully.', 'signalfire-quick-notes'),
-				'timestamp' => wp_date(get_option('date_format') . ' ' . get_option('time_format'), strtotime($notes_data['last_updated'])),
-				'user_name' => $current_user->display_name
-			));
+		if ( $saved ) {
+			wp_send_json_success(
+				array(
+					'message'   => __( 'Notes saved successfully.', 'signalfire-quick-notes' ),
+					'timestamp' => wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), strtotime( $notes_data['last_updated'] ) ),
+					'user_name' => $current_user->display_name,
+				)
+			);
 		} else {
-			wp_send_json_error(__('Failed to save notes.', 'signalfire-quick-notes'));
+			wp_send_json_error( __( 'Failed to save notes.', 'signalfire-quick-notes' ) );
 		}
 	}
 	
+	/**
+	 * Plugin activation hook
+	 */
 	public function activate() {
 		// Initialize empty notes data
-		if (!get_option($this->option_name)) {
-			add_option($this->option_name, array(
-				'content' => '',
-				'last_updated' => '',
-				'updated_by' => '',
-				'updated_by_name' => ''
-			));
+		if ( ! get_option( $this->option_name ) ) {
+			add_option(
+				$this->option_name,
+				array(
+					'content'         => '',
+					'last_updated'    => '',
+					'updated_by'      => '',
+					'updated_by_name' => '',
+				)
+			);
 		}
 	}
 }
